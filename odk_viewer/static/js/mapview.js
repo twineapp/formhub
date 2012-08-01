@@ -79,6 +79,7 @@ function initialize() {
     map.addControl(layersControl);
     //show marker layer by default
     map.addLayer(markerLayerGroup);
+    map.setMaxBounds(map.getBounds());
 
     // add bing maps layer
     $.each(bingMapTypeLabels, function(type, label) {
