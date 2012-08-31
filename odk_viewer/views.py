@@ -34,7 +34,7 @@ from xls_writer import XlsWriter
 from utils.logger_tools import response_with_mimetype_and_name,\
     disposition_ext_and_date, round_down_geopoint
 from utils.viewer_tools import image_urls, image_urls_for_form
-from utils.user_auth import has_permission, get_xform_and_perms
+from utils.user_auth import has_permission, get_xform_and_perms, helper_auth_helper
 from utils.google import google_export_xls, redirect_uri
 # TODO: using from main.views import api breaks the application, why?
 import main
@@ -162,6 +162,7 @@ def survey_responses(request, instance_id):
 
 
 def csv_export(request, username, id_string):
+    helper_auth_helper(request)
     owner = get_object_or_404(User, username=username)
     xform = get_object_or_404(XForm, id_string=id_string, user=owner)
     if not has_permission(xform, owner, request):
