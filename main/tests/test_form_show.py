@@ -353,6 +353,32 @@ class TestFormShow(MainTestCase):
                                if e.name == u'preferred_means']) > 0
         self.assertTrue(is_updated_form)
 
+    def test_update_retains_existing_id_string(self):
+        count = XForm.objects.count()
+        xform_update_url = reverse(update_xform, kwargs={
+            'username': self.user.username,
+            'id_string': self.xform.id_string
+        })
+        # update the form with one with a different id_string set
+        updated_xls_path = os.path.join(
+            self.this_directory,
+            "fixtures",
+            "transportation",
+            "transportation_with_long_id_string_updated.xls")
+        with open(updated_xls_path, "r") as xls_file:
+            post_data = {'xls_file': xls_file}
+            self.client.post(xform_update_url, post_data)
+        # Count should stay the same
+        self.assertEqual(XForm.objects.count(), count)
+        self.xform = XForm.objects.order_by('id').reverse()[0]
+        data_dictionary = self.xform.data_dictionary()
+        # look for the preferred_means question
+        # which is only in the updated xls
+        is_updated_form = len([e.name for e in data_dictionary.survey_elements
+                               if e.name == u'preferred_means']) > 0
+        self.assertTrue(is_updated_form)
+        self.assertEqual(self.xform.id_string, "transportation_2011_07_25")
+
     def test_xform_delete(self):
         id_string = self.xform.id_string
         form_exists = XForm.objects.filter(
