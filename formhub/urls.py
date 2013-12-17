@@ -119,7 +119,6 @@ urlpatterns = patterns(
     url(r"^(?P<username>\w+)/exports/(?P<id_string>[^/]+)/(?P<export_type>\w+)/(?P<filename>[^/]+)$", 'odk_viewer.views.export_download'),
 
     # odk data urls
-    url(r"^submission$", 'odk_logger.views.submission'),
     url(r"^(?P<username>\w+)/formList$", 'odk_logger.views.formList'),
     url(r"^(?P<username>\w+)/xformsManifest/(?P<id_string>[^/]+)$",
         'odk_logger.views.xformsManifest'),
