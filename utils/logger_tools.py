@@ -129,12 +129,18 @@ def _override_date_created (instance, xml, date_created_override):
 
         # stet from legacy code here:
         # reset the timezone to utc if necessary
-        if not timezone.is_aware(date_created_override):
-            date_created_override = timezone.make_aware(date_created_override,
-                                                        timezone.utc)
+        try:
+            if not timezone.is_aware(date_created_override):
+                date_created_override = timezone.make_aware(date_created_override,
+                                                            timezone.utc)
 
-        instance.date_created = date_created_override
-        instance.save()
+            instance.date_created = date_created_override
+            instance.save()
+        except Exception:
+            # according to the django docs, there are cases where
+            # calling timezone.make_aware() can raise an exception
+            # if value doesn't exist or is ambiguous because of DST transitions
+            pass
 
 @transaction.commit_on_success
 def _generate_parsed_instance (instance):
