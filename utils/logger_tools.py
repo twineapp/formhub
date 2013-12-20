@@ -151,6 +151,31 @@ def _generate_parsed_instance (instance):
         pi, created = ParsedInstance.objects.get_or_create(instance=instance)
         return pi
 
+def _fetch_xform (uuid, id_string, username):
+    """Find and return the XForm object which matches either:
+
+    (a) The given XForm uuid (preferred case); or
+    (b) The id_string/username combination
+
+    returning None if the XForm does not exist, or raising
+    a duplicate XForm exception if more than one XForm exists
+    for either retrieval method (a) or (b)
+    """
+
+    try:
+        # attempt to get the XForm by its uuid: this is the "ideal" method
+        return XForm.objects.get(uuid=uuid)
+    except XForm.MultipleObjectsReturned:
+        raise ValueError(_("Duplicate XForm"))
+    except XForm.DoesNotExist:
+        # try instead using the id_string/username combination
+        try:
+            return XForm.objects.get(id_string=id_string, user__username=username)
+        except XForm.MultipleObjectsReturned:
+            raise ValueError(_("Duplicate XForm"))
+        except XForm.DoesNotExist:
+            pass
+
 def create_instance(username,
                     xml_file,
                     media_files,
@@ -168,10 +193,13 @@ def create_instance(username,
     If successful, this function returns the Instance object.
 
     Unlike prior versions, which accepted form submissions missing either usernames, XForm uuids,
-    or both, this version requires that both the username and XForm uuid be defined.
+    or both, this version requires that at least the username or XForm uuid be defined.
 
     The XForm uuid is allowed to be missing from the function parameters, but in that case it must
-    exist in the xml, as defined by the uuid_regex pattern, or the submission will fail.
+    exist in the xml, as defined by the uuid_regex pattern.
+
+    Otherwise, the XForm must be retrievable by its id_string/username combination,
+    or the submission will fail.
     """
 
     try:
@@ -189,89 +217,89 @@ def create_instance(username,
         except (TypeError, IndexError):
             pass
 
-    if username is None or uuid is None:
+    if username is None and uuid is None:
         raise InstanceInvalidUserError()
 
-    # fetch the XForm by its uuid
-    try:
-        xform = XForm.objects.get(uuid=uuid)
+    # see if we can determine the XForm
+    # corresponding to this form submission
 
-        # check the XForm permissions:
-        # crowdforms can be submitted by anyone,
-        # but non-crowdforms must have the correct User
-
-        if not xform.is_crowd_form:
-
-            # make sure that if the XForm requires authentication
-            # this User is logged in, and matches the XForm's owner
-
-            if xform.user.profile.require_auth \
-               and xform.user != request.user:
-                raise PermissionDenied(
-                    _(u"%(request_user)s is not allowed to make submissions "
-                      u"to %(form_user)s's %(form_title)s form." % {
-                          'request_user': request.user,
-                          'form_user': xform.user,
-                          'form_title': xform.title}))
-
-            # even if the User who owns the XForm does not require
-            # authentication, we need to make sure that this User
-            # is indeed the XForm owner, otherwise raise an error
-
-            if username.lower() != xform.user.username.lower():
-                raise IsNotCrowdformError()
-
-        # crowdform submissions have the username='crowdform' (literally)
-        # so need to change the username to the XForm owner's username
-
-        if xform.is_crowd_form:
-            username = xform.user.username
-
-        # finally, before using this xml data to create/update an Instance,
-        # make sure the User object for this username actually exists
-
-        user = get_object_or_404(User, username=username.lower()) # raise Http404 if not found
-
-        if Instance.objects.filter(xml=xml, user=user).count() > 0:
-            raise DuplicateInstance()
-        else:
-            instance = None
-
-            # determine whether or not this xml corresponds
-            # to an update of an existing Instance, or not
-
-            deprecated_instance_uuid = get_deprecated_uuid_from_xml(xml)
-            if deprecated_instance_uuid is not None \
-               and Instance.objects.filter(uuid=deprecated_instance_uuid).count() > 0:
-                # legacy logic: the instance to update will always be
-                # the first one for this filter...
-                deprecated_instance = Instance.objects.filter(uuid=deprecated_instance_uuid)[0]
-                instance = _update_existing_instance (deprecated_instance_uuid,
-                                                      user,
-                                                      xml,
-                                                      media_files,
-                                                      status)
-            if instance is None:
-                instance = _generate_new_instance (user, xml, media_files, status)
-
-            if instance is not None:
-                _override_date_created (instance, xml, date_created_override)
-
-                # stet of legacy code that doesn't make sense on the surface:
-                # the create part of get_or_create() automatically saves the
-                # newly-created object, and django is synchronous by default,
-                # so passing async=False doesn't seem to be needed here
-
-                parsed_instance = _generate_parsed_instance (instance)
-                if parsed_instance is not None:
-                    parsed_instance.save(async=False)
-
-            return instance
-
-    except XForm.MultipleObjectsReturned:
-        raise DuplicateInstance()
-    except XForm.DoesNotExist:
+    xform = _fetch_xform (uuid,
+                          get_id_string_from_xml_str(xml),
+                          username.lower())
+    if xform is None:
         raise ValueError(_("No such XForm"))
+    
+    # check the XForm permissions:
+    # crowdforms can be submitted by anyone,
+    # but non-crowdforms must have the correct User
+
+    if not xform.is_crowd_form:
+
+        # make sure that if the XForm requires authentication
+        # this User is logged in, and matches the XForm's owner
+
+        if xform.user.profile.require_auth \
+           and xform.user != request.user:
+            raise PermissionDenied(
+                _(u"%(request_user)s is not allowed to make submissions "
+                  u"to %(form_user)s's %(form_title)s form." % {
+                      'request_user': request.user,
+                      'form_user': xform.user,
+                      'form_title': xform.title}))
+
+        # even if the User who owns the XForm does not require
+        # authentication, we need to make sure that this User
+        # is indeed the XForm owner, otherwise raise an error
+
+        if username.lower() != xform.user.username.lower():
+            raise IsNotCrowdformError()
+
+    # crowdform submissions have the username='crowdform' (literally)
+    # so need to change the username to the XForm owner's username
+
+    if xform.is_crowd_form:
+        username = xform.user.username
+
+    # finally, before using this xml data to create/update an Instance,
+    # make sure the User object for this username actually exists
+
+    user = get_object_or_404(User, username=username.lower()) # raise Http404 if not found
+
+    if Instance.objects.filter(xml=xml, user=user).count() > 0:
+        raise DuplicateInstance()
+    else:
+        instance = None
+
+        # determine whether or not this xml corresponds
+        # to an update of an existing Instance, or not
+
+        deprecated_instance_uuid = get_deprecated_uuid_from_xml(xml)
+        if deprecated_instance_uuid is not None \
+           and Instance.objects.filter(uuid=deprecated_instance_uuid).count() > 0:
+            # legacy logic: the instance to update will always be
+            # the first one for this filter...
+            deprecated_instance = Instance.objects.filter(uuid=deprecated_instance_uuid)[0]
+            instance = _update_existing_instance (deprecated_instance_uuid,
+                                                  user,
+                                                  xml,
+                                                  media_files,
+                                                  status)
+        if instance is None:
+            instance = _generate_new_instance (user, xml, media_files, status)
+
+        if instance is not None:
+            _override_date_created (instance, xml, date_created_override)
+
+            # stet of legacy code that doesn't make sense on the surface:
+            # the create part of get_or_create() automatically saves the
+            # newly-created object, and django is synchronous by default,
+            # so passing async=False doesn't seem to be needed here
+
+            parsed_instance = _generate_parsed_instance (instance)
+            if parsed_instance is not None:
+                parsed_instance.save(async=False)
+
+        return instance
 
 
 def report_exception(subject, info, exc_info=None):
