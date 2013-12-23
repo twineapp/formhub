@@ -19,6 +19,7 @@ from django.db.models.signals import pre_delete
 from django.http import HttpResponse, HttpResponseNotFound, \
     StreamingHttpResponse
 from django.shortcuts import get_object_or_404
+from django.http import Http404
 from django.utils.translation import ugettext as _
 from django.utils import timezone
 from modilabs.utils.subprocess_timeout import ProcessTimedOut
@@ -227,7 +228,7 @@ def create_instance(username,
                           get_id_string_from_xml_str(xml),
                           username.lower())
     if xform is None:
-        raise ValueError(_("No such XForm"))
+        raise Http404
     
     # check the XForm permissions:
     # crowdforms can be submitted by anyone,
