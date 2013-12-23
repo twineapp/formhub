@@ -152,7 +152,7 @@ def _generate_parsed_instance (instance):
         pi, created = ParsedInstance.objects.get_or_create(instance=instance)
         return pi
 
-def _fetch_xform (uuid, id_string, username):
+def _fetch_xform (uuid, id_string, username, req_obj):
     """Find and return the XForm object which matches either:
 
     (a) The given XForm uuid (preferred case); or
@@ -172,12 +172,15 @@ def _fetch_xform (uuid, id_string, username):
         raise ValueError(_("Duplicate XForm"))
     except XForm.DoesNotExist:
         # try instead using the id_string/username combination
-        try:
-            xform = XForm.objects.get(id_string=id_string, user__username=username)
-        except XForm.MultipleObjectsReturned:
-            raise ValueError(_("Duplicate XForm"))
-        except XForm.DoesNotExist:
-            xform = None
+        # but only if the request object is present, and the
+        # request.user is authenticated (legacy code condition)
+        if req_obj is not None and req_obj.user.is_authenticated():
+            try:
+                xform = XForm.objects.get(id_string=id_string, user__username=username)
+            except XForm.MultipleObjectsReturned:
+                raise ValueError(_("Duplicate XForm"))
+            except XForm.DoesNotExist:
+                xform = None
 
     return xform
 
@@ -230,7 +233,9 @@ def create_instance(username,
 
     xform = _fetch_xform (uuid,
                           get_id_string_from_xml_str(xml),
-                          username.lower())
+                          username.lower(),
+                          request)
+
     if xform is None:
         raise Http404
     else:
