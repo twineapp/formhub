@@ -239,7 +239,7 @@ def create_instance(username,
         # make sure that if the XForm requires authentication
         # this User is logged in, and matches the XForm's owner
 
-        if xform.user.profile.require_auth \
+        if xform.user.profile and xform.user.profile.require_auth \
            and xform.user != request.user:
             raise PermissionDenied(
                 _(u"%(request_user)s is not allowed to make submissions "
