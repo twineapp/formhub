@@ -19,7 +19,6 @@ from django.db.models.signals import pre_delete
 from django.http import HttpResponse, HttpResponseNotFound, \
     StreamingHttpResponse
 from django.shortcuts import get_object_or_404
-from django.http import Http404
 from django.utils.translation import ugettext as _
 from django.utils import timezone
 from modilabs.utils.subprocess_timeout import ProcessTimedOut
@@ -215,7 +214,8 @@ def create_instance(username,
         # request.user is authenticated, (legacy code condition)
         if username and request and request.user.is_authenticated():
             try:
-                xform = XForm.objects.get(id_string=id_string, user__username=username)
+                xform = XForm.objects.get(id_string=get_id_string_from_xml_str(xml),
+                                          user__username=username)
 
             except XForm.MultipleObjectsReturned:
                 raise ValueError(_("Duplicate XForm"))
@@ -224,7 +224,7 @@ def create_instance(username,
                 pass
 
     if xform is None:
-        raise Http404
+        raise XForm.DoesNotExist
 
     # check the XForm permissions:
     # crowdforms can be submitted by anyone,
