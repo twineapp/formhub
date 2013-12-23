@@ -164,6 +164,7 @@ def _fetch_xform (uuid, id_string, username):
     """
 
     xform = None
+
     try:
         # attempt to get the XForm by its uuid: this is the "ideal" method
         xform = XForm.objects.get(uuid=uuid)
@@ -176,7 +177,8 @@ def _fetch_xform (uuid, id_string, username):
         except XForm.MultipleObjectsReturned:
             raise ValueError(_("Duplicate XForm"))
         except XForm.DoesNotExist:
-            pass
+            xform = None
+
     return xform
 
 def create_instance(username,
