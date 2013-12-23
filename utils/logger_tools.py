@@ -102,7 +102,7 @@ def _update_existing_instance (instance_uuid, user, xml, media_files, status):
         # and update the previously-existing Instance object
         # (ugly: the updated instance uuid is in the xml)
         new_instance_uuid = get_uuid_from_xml(xml)
-        if new_instance is None:
+        if new_instance_uuid is None:
             raise ValueError(_("XML string must have an instanceID"))
         else:
             instance.xml = xml
